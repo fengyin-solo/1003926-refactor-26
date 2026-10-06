@@ -1,3 +1,4 @@
+import { resetVersions as resetThresholdVersions } from '@/domain/threshold/store'
 import { SEED_ROWS } from './seed'
 import type { EntryRow } from './types'
 
@@ -51,6 +52,10 @@ export function saveRows(key: string, rows: EntryRow[]): void {
 export function resetRows(key: string): EntryRow[] {
   const rows = clone(SEED_ROWS[key] ?? [])
   saveRows(key, rows)
+  if (key === 'threshold') {
+    // 阈值重置必须连同版本库一起回到示例，避免两个入口各留一份旧数据
+    resetThresholdVersions()
+  }
   return rows
 }
 

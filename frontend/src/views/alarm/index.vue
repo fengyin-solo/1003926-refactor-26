@@ -37,6 +37,7 @@
       <thead>
         <tr>
           <th v-for="column in columns" :key="column">{{ column }}</th>
+          <th>发布依据（按发布当时阈值）</th>
           <th>当前状态</th>
           <th>可执行动作</th>
         </tr>
@@ -44,6 +45,7 @@
       <tbody>
         <tr v-for="row in rows" :key="String(row.id)">
           <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
+          <td class="threshold-cell">{{ explain(row) }}</td>
           <td>{{ row.status }}</td>
           <td class="row-actions">
             <button
@@ -58,7 +60,7 @@
           </td>
         </tr>
         <tr v-if="!rows.length">
-          <td :colspan="columns.length + 2" class="empty-state">暂无预警发布数据，可先登记预警通知</td>
+          <td :colspan="columns.length + 3" class="empty-state">暂无预警发布数据，可先登记预警通知</td>
         </tr>
       </tbody>
     </table>
@@ -75,6 +77,7 @@ import { computed, onMounted, ref } from 'vue'
 
 import {
   downloadEntries,
+  explainThresholdUsage,
   listEntries,
   moduleMeta,
   runAction as applyAction,
@@ -86,6 +89,10 @@ const columns = ["通知编号", "隐患点编号", "预警等级", "触发条�
 const actions = ["确认发布", "登记响应", "解除预警"]
 const statuses = ["待发布", "已发布", "已响应", "已解除", "误报"]
 const stats = [{"label": "本月预警数", "value": 0}, {"label": "已响应数", "value": 0}, {"label": "未解除数", "value": 0}]
+
+function explain(row: EntryRow): string {
+  return explainThresholdUsage(meta.key, row)
+}
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)

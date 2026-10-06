@@ -37,6 +37,7 @@
       <thead>
         <tr>
           <th v-for="column in columns" :key="column">{{ column }}</th>
+          <th>适用阈值（历史观测按当时阈值）</th>
           <th>当前状态</th>
           <th>可执行动作</th>
         </tr>
@@ -44,6 +45,7 @@
       <tbody>
         <tr v-for="row in rows" :key="String(row.id)">
           <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
+          <td class="threshold-cell">{{ explain(row) }}</td>
           <td>{{ row.status }}</td>
           <td class="row-actions">
             <button
@@ -58,7 +60,7 @@
           </td>
         </tr>
         <tr v-if="!rows.length">
-          <td :colspan="columns.length + 2" class="empty-state">暂无倾斜监测数据，可先登记倾斜记录</td>
+          <td :colspan="columns.length + 3" class="empty-state">暂无倾斜监测数据，可先登记倾斜记录</td>
         </tr>
       </tbody>
     </table>
@@ -75,6 +77,7 @@ import { computed, onMounted, ref } from 'vue'
 
 import {
   downloadEntries,
+  explainThresholdUsage,
   listEntries,
   moduleMeta,
   runAction as applyAction,
@@ -82,10 +85,14 @@ import {
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('tilt')
-const columns = ["记录编号", "测点编号", "观测方向", "倾斜角度", "变化量", "累积倾斜量", "观测人", "记录状态"]
+const columns = ["记录编号", "测点编号", "观测日期", "观测方向", "倾斜角度", "变化量", "累积倾斜量", "观测人", "记录状态"]
 const actions = ["提交校核", "确认校核", "触发报警"]
 const statuses = ["已观测", "待校核", "已校核", "超限报警", "需复测"]
 const stats = [{"label": "本月观测数", "value": 0}, {"label": "超限报警数", "value": 0}, {"label": "待校核数", "value": 0}]
+
+function explain(row: EntryRow): string {
+  return explainThresholdUsage(meta.key, row)
+}
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
