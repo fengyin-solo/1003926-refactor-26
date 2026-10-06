@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": ".build",
+    "rootDir": "..",
+    "baseUrl": "..",
+    "paths": { "@/*": ["src/*"] },
+    "typeRoots": ["../node_modules/@types"],
+    "types": ["node"]
+  },
+  "files": [
+    "../src/data/types.ts",
+    "../src/data/modules.ts",
+    "../src/data/seed.ts",
+    "../src/data/local-store.ts",
+    "../src/data/threshold/types.ts",
+    "../src/data/threshold/registry.ts",
+    "../src/data/threshold/service.ts",
+    "../src/data/threshold/eval.ts",
+    "../src/api/local-service.ts",
+    "check-threshold.ts"
+  ]
+}

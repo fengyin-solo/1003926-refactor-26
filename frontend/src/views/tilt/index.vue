@@ -24,6 +24,13 @@
       </span>
     </p>
 
+    <div v-if="thresholdIssues.length" class="issue-banner">
+      <strong>倾斜阈值配置问题（空配置 / 版本冲突统一在此说明，问题区间不参与计算）：</strong>
+      <ul>
+        <li v-for="(issue, index) in thresholdIssues" :key="index">{{ issue }}</li>
+      </ul>
+    </div>
+
     <form class="filter-bar" @submit.prevent="reload">
       <label v-for="field in filterFields" :key="field" class="filter-item">
         <span>{{ field }}</span>
@@ -37,6 +44,7 @@
       <thead>
         <tr>
           <th v-for="column in columns" :key="column">{{ column }}</th>
+          <th>阈值判定（共用）</th>
           <th>当前状态</th>
           <th>可执行动作</th>
         </tr>
@@ -44,6 +52,9 @@
       <tbody>
         <tr v-for="row in rows" :key="String(row.id)">
           <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
+          <td>
+            <span :class="judgement(row).tone">{{ judgement(row).text }}</span>
+          </td>
           <td>{{ row.status }}</td>
           <td class="row-actions">
             <button
@@ -58,7 +69,7 @@
           </td>
         </tr>
         <tr v-if="!rows.length">
-          <td :colspan="columns.length + 2" class="empty-state">暂无倾斜监测数据，可先登记倾斜记录</td>
+          <td :colspan="columns.length + 3" class="empty-state">暂无倾斜监测数据，可先登记倾斜记录</td>
         </tr>
       </tbody>
     </table>
@@ -79,10 +90,14 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import { evaluateRow } from '@/data/threshold/eval'
+import type { ThresholdRegistry } from '@/data/threshold/registry'
+import { thresholdSnapshot } from '@/data/threshold/service'
+import { LEVEL_LABEL } from '@/data/threshold/types'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('tilt')
-const columns = ["记录编号", "测点编号", "观测方向", "倾斜角度", "变化量", "累积倾斜量", "观测人", "记录状态"]
+const columns = ["记录编号", "测点编号", "观测日期", "观测方向", "倾斜角度", "变化量", "累积倾斜量", "观测人", "记录状态"]
 const actions = ["提交校核", "确认校核", "触发报警"]
 const statuses = ["已观测", "待校核", "已校核", "超限报警", "需复测"]
 const stats = [{"label": "本月观测数", "value": 0}, {"label": "超限报警数", "value": 0}, {"label": "待校核数", "value": 0}]
@@ -91,7 +106,30 @@ const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
+const registry = ref<ThresholdRegistry>({ chains: [], issues: [] })
 const filterFields = columns.slice(0, 3)
+
+const thresholdIssues = computed(() =>
+  registry.value.issues.filter((issue) => issue.includes('倾斜')),
+)
+
+// 与雨量页、预警发布共用 evaluateRow：历史观测按观测日期当天的阈值解释。
+function judgement(row: EntryRow): { text: string; tone: string } {
+  const result = evaluateRow(registry.value, 'tilt', row)
+  if (result.status === 'empty') {
+    return { text: `无可用阈值：${result.reason}`, tone: 'judge-empty' }
+  }
+  if (result.status === 'conflict') {
+    return { text: `版本冲突：${result.reason}`, tone: 'judge-conflict' }
+  }
+  if (result.status === 'invalid') {
+    return { text: `阈值异常：${result.reason}`, tone: 'judge-conflict' }
+  }
+  return {
+    text: `${LEVEL_LABEL[result.level]}（v${result.version.version}）`,
+    tone: result.hit ? 'judge-hit' : 'judge-normal',
+  }
+}
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
@@ -128,6 +166,7 @@ function reload() {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    registry.value = thresholdSnapshot()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '倾斜监测列表读取失败'
   }
@@ -135,3 +174,20 @@ function reload() {
 
 onMounted(reload)
 </script>
+
+<style scoped>
+.issue-banner {
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #b42318;
+}
+.issue-banner ul { margin: 4px 0 0; padding-left: 18px; }
+.judge-hit { color: #b42318; font-weight: 600; }
+.judge-conflict { color: #b42318; }
+.judge-empty { color: var(--muted); }
+.judge-normal { color: #067647; }
+</style>

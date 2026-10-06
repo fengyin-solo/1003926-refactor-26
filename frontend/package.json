@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "check:threshold": "tsc -p scripts/tsconfig.check.json && cp scripts/run-check.cjs scripts/.build/scripts/run-check.cjs && node -e \"require('fs').writeFileSync('scripts/.build/package.json','{\\\"type\\\":\\\"commonjs\\\"}')\" && node scripts/.build/scripts/run-check.cjs"
   },
   "dependencies": {
     "pinia": "^2.1.7",

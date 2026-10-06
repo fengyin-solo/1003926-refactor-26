@@ -30,6 +30,8 @@ export type PageResult = {
 export type ActionResult = {
   ok: boolean
   message: string
+  /** 需要由领域服务改写整行时（如预警发布写入阈值依据），随结果带回新行。 */
+  updated?: EntryRow
 }
 
 export type OverviewResult = {

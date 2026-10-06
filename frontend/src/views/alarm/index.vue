@@ -24,6 +24,13 @@
       </span>
     </p>
 
+    <div v-if="registry.issues.length" class="issue-banner">
+      <strong>阈值配置问题（预警发布与雨量、倾斜读取同一份结果；空配置 / 版本冲突时禁止发布）：</strong>
+      <ul>
+        <li v-for="(issue, index) in registry.issues" :key="index">{{ issue }}</li>
+      </ul>
+    </div>
+
     <form class="filter-bar" @submit.prevent="reload">
       <label v-for="field in filterFields" :key="field" class="filter-item">
         <span>{{ field }}</span>
@@ -37,6 +44,7 @@
       <thead>
         <tr>
           <th v-for="column in columns" :key="column">{{ column }}</th>
+          <th>发布阈值校验（共用）</th>
           <th>当前状态</th>
           <th>可执行动作</th>
         </tr>
@@ -44,6 +52,9 @@
       <tbody>
         <tr v-for="row in rows" :key="String(row.id)">
           <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
+          <td>
+            <span :class="publishCheck(row).tone">{{ publishCheck(row).text }}</span>
+          </td>
           <td>{{ row.status }}</td>
           <td class="row-actions">
             <button
@@ -58,7 +69,7 @@
           </td>
         </tr>
         <tr v-if="!rows.length">
-          <td :colspan="columns.length + 2" class="empty-state">暂无预警发布数据，可先登记预警通知</td>
+          <td :colspan="columns.length + 3" class="empty-state">暂无预警发布数据，可先登记预警通知</td>
         </tr>
       </tbody>
     </table>
@@ -79,6 +90,10 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import { alarmPublishContext } from '@/data/threshold/eval'
+import type { ThresholdRegistry } from '@/data/threshold/registry'
+import { thresholdSnapshot } from '@/data/threshold/service'
+import { LEVEL_LABEL } from '@/data/threshold/types'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('alarm')
@@ -91,7 +106,32 @@ const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
+const registry = ref<ThresholdRegistry>({ chains: [], issues: [] })
 const filterFields = columns.slice(0, 3)
+
+// 预警发布读取的就是统一判定：发布按当时有效版本核定等级，已发布的历史行展示其存档依据。
+function publishCheck(row: EntryRow): { text: string; tone: string } {
+  if (String(row.status) !== '待发布') {
+    return { text: '—', tone: 'judge-normal' }
+  }
+  const { evaluation } = alarmPublishContext(registry.value, row)
+  if (evaluation.status === 'empty') {
+    return { text: `禁止发布：${evaluation.reason}`, tone: 'judge-conflict' }
+  }
+  if (evaluation.status === 'conflict') {
+    return { text: `禁止发布：${evaluation.reason}`, tone: 'judge-conflict' }
+  }
+  if (evaluation.status === 'invalid') {
+    return { text: `禁止发布：${evaluation.reason}`, tone: 'judge-conflict' }
+  }
+  if (!evaluation.hit) {
+    return { text: `禁止发布：${LEVEL_LABEL[evaluation.level]}，未达注意级`, tone: 'judge-empty' }
+  }
+  return {
+    text: `可发布：${LEVEL_LABEL[evaluation.level]}（v${evaluation.version.version}）`,
+    tone: 'judge-hit',
+  }
+}
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
@@ -128,6 +168,7 @@ function reload() {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    registry.value = thresholdSnapshot()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '预警发布列表读取失败'
   }
@@ -135,3 +176,20 @@ function reload() {
 
 onMounted(reload)
 </script>
+
+<style scoped>
+.issue-banner {
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #b42318;
+}
+.issue-banner ul { margin: 4px 0 0; padding-left: 18px; }
+.judge-hit { color: #067647; font-weight: 600; }
+.judge-conflict { color: #b42318; }
+.judge-empty { color: var(--muted); }
+.judge-normal { color: var(--muted); }
+</style>

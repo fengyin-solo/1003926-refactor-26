@@ -20,6 +20,7 @@ pip-wheel-metadata/
 dist/
 build/
 out/
+frontend/scripts/.build/
 target/
 **/target/
 .gradle/
